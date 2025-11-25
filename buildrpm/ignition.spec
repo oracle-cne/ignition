@@ -11,14 +11,8 @@
 %global ignedgeshortcommit %(c=%{ignedgecommit}; echo ${c:0:7})
 
 # https://github.com/coreos/ignition
-%global goipath         github.com/coreos/ignition
-%global gomodulesmode   GO111MODULE=on
 Version:                2.16.2
 
-%gometa
-
-%global golicenses      LICENSE
-%global godocs          README.md docs/
 %global dracutlibdir %{_prefix}/lib/dracut
 
 Name:           ignition
@@ -195,28 +189,6 @@ the configuration.
 
 This package contains a tool for validating Ignition configurations.
 
-############## validate-redistributable subpackage ##############
-
-%if 0%{?fedora}
-%package validate-redistributable
-
-Summary:   Statically linked validation tool for Ignition configs
-License:   ASL 2.0
-BuildArch: noarch
-
-Conflicts: ignition < 0.31.0-3
-
-# In case someone has this subpackage installed, obsolete the old name
-# Drop in Fedora 38
-Obsoletes:     ignition-validate-nonlinux < 2.13.0-4
-
-%description validate-redistributable
-This package contains statically linked Linux, macOS, and Windows
-ignition-validate binaries built through cross-compilation. Do not install it.
-It is only used for building release binaries to be signed by Fedora release
-engineering and uploaded to the Ignition GitHub releases page.
-%endif
-
 ############## ignition-edge subpackage ##############
 
 %if 0%{?rhel} && !0%{?eln}
@@ -232,7 +204,6 @@ Ignition on IoT/Edge systems.
 
 %prep
 %if 0%{?fedora}
-%goprep -k
 %autopatch -p2
 %else
 %forgeautosetup -p2
@@ -240,38 +211,7 @@ tar xvf %{SOURCE1}
 %endif
 
 %build
-export LDFLAGS="-X github.com/coreos/ignition/v2/internal/version.Raw=%{version} -X github.com/coreos/ignition/v2/internal/distro.selinuxRelabel=true "
-%if 0%{?rhel} && 0%{?rhel} <= 8
-# Disable writing ssh keys fragments on RHEL/CentOS <= 8
-LDFLAGS+=' -X github.com/coreos/ignition/v2/internal/distro.writeAuthorizedKeysFragment=false '
-%endif
-%if 0%{?rhel}
-# Need uncompressed debug symbols for debuginfo extraction
-LDFLAGS+=' -compressdwarf=false '
-%endif
-export GOFLAGS="-mod=vendor"
-
-echo "Building ignition..."
-%gobuild -o ./ignition internal/main.go
-
-echo "Building ignition-validate..."
-%gobuild -o ./ignition-validate validate/main.go
-
-%global gocrossbuild go build -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n')" -a -v -x
-
-%if 0%{?fedora}
-echo "Building statically-linked Linux ignition-validate..."
-CGO_ENABLED=0 GOARCH=arm64 GOOS=linux %gocrossbuild -o ./ignition-validate-aarch64-unknown-linux-gnu-static validate/main.go
-CGO_ENABLED=0 GOARCH=ppc64le GOOS=linux %gocrossbuild -o ./ignition-validate-ppc64le-unknown-linux-gnu-static validate/main.go
-CGO_ENABLED=0 GOARCH=s390x GOOS=linux %gocrossbuild -o ./ignition-validate-s390x-unknown-linux-gnu-static validate/main.go
-CGO_ENABLED=0 GOARCH=amd64 GOOS=linux %gocrossbuild -o ./ignition-validate-x86_64-unknown-linux-gnu-static validate/main.go
-
-echo "Building macOS ignition-validate..."
-GOARCH=amd64 GOOS=darwin %gocrossbuild -o ./ignition-validate-x86_64-apple-darwin validate/main.go
-
-echo "Building Windows ignition-validate..."
-GOARCH=amd64 GOOS=windows %gocrossbuild -o ./ignition-validate-x86_64-pc-windows-gnu.exe validate/main.go
-%endif
+GLDFLAGS="-X github.com/coreos/ignition/v2/internal/distro.selinuxRelabel=true " ./build
 
 %install
 # dracut modules
@@ -311,8 +251,8 @@ install -p -m 0755 ./ignition %{buildroot}/%{dracutlibdir}/modules.d/30ignition
 %endif
 
 %files
-%license %{golicenses} olm/SECURITY.md THIRD_PARTY_LICENSES.txt
-%doc %{godocs}
+%license LICENSE olm/SECURITY.md THIRD_PARTY_LICENSES.txt
+%doc README.md docs/
 %{dracutlibdir}/modules.d/30ignition/*
 %{_unitdir}/ignition-delete-config.service
 %{_libexecdir}/ignition-apply
@@ -320,25 +260,13 @@ install -p -m 0755 ./ignition %{buildroot}/%{dracutlibdir}/modules.d/30ignition
 
 %files validate
 %doc README.md
-%license %{golicenses}
+%license LICENSE
 %{_bindir}/ignition-validate
-
-%if 0%{?fedora}
-%files validate-redistributable
-%license %{golicenses}
-%dir %{_datadir}/ignition
-%{_datadir}/ignition/ignition-validate-aarch64-unknown-linux-gnu-static
-%{_datadir}/ignition/ignition-validate-ppc64le-unknown-linux-gnu-static
-%{_datadir}/ignition/ignition-validate-s390x-unknown-linux-gnu-static
-%{_datadir}/ignition/ignition-validate-x86_64-apple-darwin
-%{_datadir}/ignition/ignition-validate-x86_64-pc-windows-gnu.exe
-%{_datadir}/ignition/ignition-validate-x86_64-unknown-linux-gnu-static
-%endif
 
 %if 0%{?rhel} && !0%{?eln}
 %files edge
-%license %{golicenses}
-%doc %{godocs}
+%license LICENSE
+%doc README.md docs/
 %{dracutlibdir}/modules.d/35ignition-edge/*
 %{dracutlibdir}/modules.d/10coreos-sysctl/*
 %{dracutlibdir}/modules.d/99emergency-shell-setup/*
