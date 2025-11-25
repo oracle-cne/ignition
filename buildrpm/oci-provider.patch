@@ -1,0 +1,71 @@
+--- ignition/ignition-2.16.2/internal/providers/oci/oci.go
++++ ignition/ignition-2.16.2/internal/providers/oci/oci.go
+@@ -0,0 +1,68 @@
++package oci
++
++import (
++	"encoding/base64"
++	"fmt"
++	"github.com/coreos/ignition/v2/config/shared/errors"
++	"github.com/coreos/ignition/v2/config/v3_5_experimental/types"
++	"github.com/coreos/ignition/v2/internal/platform"
++	"github.com/coreos/ignition/v2/internal/providers/util"
++	"github.com/coreos/ignition/v2/internal/resource"
++	"github.com/coreos/vcontext/report"
++	"net/http"
++	"net/url"
++)
++
++var (
++	imdsv2URL = url.URL{
++		Scheme: "http",
++		Host:   "169.254.169.254",
++		Path:   "opc/v2/instance/metadata/user_data",
++	}
++)
++
++func init() {
++	platform.Register(platform.Provider{
++		Name:  "oci",
++		Fetch: fetchConfig,
++	})
++}
++
++func fetchConfig(f *resource.Fetcher) (types.Config, report.Report, error) {
++	opts := resource.FetchOptions{
++		Headers: http.Header{
++			"Authorization": []string{"Bearer Oracle"},
++		},
++	}
++	data, err := f.FetchToBuffer(imdsv2URL, opts)
++	if err != nil {
++		return types.Config{}, report.Report{}, err
++	}
++	data, err = decodeBase64(data)
++	if err != nil {
++		return types.Config{}, report.Report{}, err
++	}
++	return util.ParseConfig(f.Logger, data)
++}
++
++// The following function reuses code found in providers/azure/azure.go to decode base64 data.
++func decodeBase64(data []byte) ([]byte, error) {
++	n := len(data)
++
++	if n == 0 {
++		return nil, errors.ErrEmpty
++	}
++
++	// data is base64 encoded by the IMDS
++	userData := make([]byte, base64.StdEncoding.DecodedLen(n))
++
++	// we keep the number of bytes written to return [:l] only.
++	// otherwise last byte will be 0x00 which makes fail the JSON's unmarshalling.
++	l, err := base64.StdEncoding.Decode(userData, data)
++	if err != nil {
++		return nil, fmt.Errorf("decoding userdata: %w", err)
++	}
++
++	return userData[:l], nil
++}
++
