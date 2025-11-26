@@ -7,6 +7,18 @@
 %bcond_with check
 %endif
 
+%define mapped_arch \
+  %( \
+      arch=$(uname -m); \
+      if [ "$arch" = "x86_64" ]; then \
+          echo "amd64"; \
+      elif [ "$arch" = "aarch64" ]; then \
+          echo "arm64"; \
+      else \
+          echo "$arch"; \
+      fi \
+  )
+
 %global ignedgecommit 35853ded31252937d3390970a89885478651c12e
 %global ignedgeshortcommit %(c=%{ignedgecommit}; echo ${c:0:7})
 
@@ -224,21 +236,11 @@ ln -sf ../lib/dracut/modules.d/30ignition/ignition %{buildroot}/%{_libexecdir}/i
 
 # ignition
 install -d -p %{buildroot}%{_bindir}
-install -p -m 0755 ./ignition-validate %{buildroot}%{_bindir}
-
-%if 0%{?fedora}
-install -d -p %{buildroot}%{_datadir}/ignition
-install -p -m 0644 ./ignition-validate-aarch64-unknown-linux-gnu-static %{buildroot}%{_datadir}/ignition
-install -p -m 0644 ./ignition-validate-ppc64le-unknown-linux-gnu-static %{buildroot}%{_datadir}/ignition
-install -p -m 0644 ./ignition-validate-s390x-unknown-linux-gnu-static %{buildroot}%{_datadir}/ignition
-install -p -m 0644 ./ignition-validate-x86_64-apple-darwin %{buildroot}%{_datadir}/ignition
-install -p -m 0644 ./ignition-validate-x86_64-pc-windows-gnu.exe %{buildroot}%{_datadir}/ignition
-install -p -m 0644 ./ignition-validate-x86_64-unknown-linux-gnu-static %{buildroot}%{_datadir}/ignition
-%endif
+install -p -m 0755 ./bin/%{mapped_arch}/ignition-validate %{buildroot}%{_bindir}
 
 # The ignition binary is only for dracut, and is dangerous to run from
 # the command line.  Install directly into the dracut module dir.
-install -p -m 0755 ./ignition %{buildroot}/%{dracutlibdir}/modules.d/30ignition
+install -p -m 0755 ./bin/%{mapped_arch}/ignition %{buildroot}/%{dracutlibdir}/modules.d/30ignition
 
 %if 0%{?rhel} && !0%{?eln}
 %make_install -C ignition-edge-%{ignedgecommit}
