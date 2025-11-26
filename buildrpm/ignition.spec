@@ -7,6 +7,10 @@
 %bcond_with check
 %endif
 
+%global debug_package   %{nil}
+%global _find_debuginfo_dwz_opts %{nil}
+%global _buildhost build-ol%{?oraclelinux}-%{?_arch}.oracle.com
+
 %define mapped_arch %( \
       arch=$(uname -m); \
       if [ "$arch" = "x86_64" ]; then \
