@@ -7,8 +7,7 @@
 %bcond_with check
 %endif
 
-%define mapped_arch \
-  %( \
+%define mapped_arch %( \
       arch=$(uname -m); \
       if [ "$arch" = "x86_64" ]; then \
           echo "amd64"; \
