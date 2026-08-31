@@ -10,37 +10,36 @@ import (
 	"unicode/utf8"
 )
 
-// A simple stack
-type stack struct {
-	data []interface{}
+type stack[E any] struct {
+	data []E
 }
 
-func (s *stack) empty() bool {
+func (s *stack[E]) empty() bool {
 	return len(s.data) == 0
 }
 
-func (s *stack) push(value interface{}) {
+func (s *stack[E]) push(value E) {
 	s.data = append(s.data, value)
 }
 
-func (s *stack) pop() interface{} {
+func (s *stack[E]) pop() E {
 	value := s.data[len(s.data)-1]
-	s.data[len(s.data)-1] = nil
+	var empty E
+	s.data[len(s.data)-1] = empty
 	s.data = s.data[:len(s.data)-1]
 	return value
 }
 
-func (s *stack) peek() interface{} {
+func (s *stack[E]) peek() E {
 	return s.data[len(s.data)-1]
 }
 
-// A fifo is a simple first-in-first-out queue.
-type fifo struct {
-	data       []interface{}
+type queue[E any] struct {
+	data       []E
 	head, tail int
 }
 
-func (f *fifo) add(value interface{}) {
+func (f *queue[E]) add(value E) {
 	if f.len()+1 >= len(f.data) {
 		f.grow()
 	}
@@ -50,33 +49,34 @@ func (f *fifo) add(value interface{}) {
 	}
 }
 
-func (f *fifo) remove() interface{} {
+func (f *queue[E]) remove() E {
 	value := f.data[f.head]
-	f.data[f.head] = nil
+	var empty E
+	f.data[f.head] = empty
 	if f.head++; f.head == len(f.data) {
 		f.head = 0
 	}
 	return value
 }
 
-func (f *fifo) len() int {
+func (f *queue[E]) len() int {
 	if f.tail >= f.head {
 		return f.tail - f.head
 	}
 	return len(f.data) - f.head + f.tail
 }
 
-func (f *fifo) grow() {
+func (f *queue[E]) grow() {
 	c := len(f.data) * 2
 	if c == 0 {
 		c = 4
 	}
-	buf, count := make([]interface{}, c), f.len()
+	buf, count := make([]E, c), f.len()
 	if f.tail >= f.head {
-		copy(buf[0:count], f.data[f.head:f.tail])
+		copy(buf[:count], f.data[f.head:f.tail])
 	} else {
 		hindex := len(f.data) - f.head
-		copy(buf[0:hindex], f.data[f.head:])
+		copy(buf[:hindex], f.data[f.head:])
 		copy(buf[hindex:count], f.data[:f.tail])
 	}
 	f.data, f.head, f.tail = buf, 0, count
@@ -299,10 +299,10 @@ func indentLF(n int, source string) string {
 	}
 }
 
-// nextIndex returns the index of the next occurrence of sep in s,
-// starting from offset.  It returns -1 if the sep string is not found.
-func nextIndex(s, sep string, offset int) int {
-	switch i := strings.Index(s[offset:], sep); i {
+// nextIndex returns the index of the next occurrence of byte ch in s,
+// starting from offset.  It returns -1 if the byte is not found.
+func nextIndex(s string, ch byte, offset int) int {
+	switch i := strings.IndexByte(s[offset:], ch); i {
 	case -1:
 		return -1
 	default:
@@ -382,6 +382,120 @@ func escapeString(w Writer, s string, m escapeMode) {
 		last = i
 	}
 	w.WriteString(s[last:])
+}
+
+// sanitizeCData writes the sanitized contents of a CDATA section to the
+// writer. XML provides no way to escape the "]]>" sequence within a CDATA
+// section, so any occurrence of it is split across two CDATA sections.
+func sanitizeCData(w Writer, s string) {
+	for {
+		i := strings.Index(s, "]]>")
+		if i < 0 {
+			break
+		}
+		w.WriteString(s[:i+2])
+		w.WriteString("]]><![CDATA[")
+		s = s[i+2:]
+	}
+	w.WriteString(s)
+}
+
+// sanitizeComment writes the sanitized contents of a comment to the writer.
+// An XML comment may not contain the string "--", and it may not end with a
+// '-'. Because XML provides no way to escape these sequences, spaces are
+// inserted where necessary.
+func sanitizeComment(w Writer, s string) {
+	last, hyphen := 0, false
+	for i := 0; i < len(s); i++ {
+		if s[i] != '-' {
+			hyphen = false
+			continue
+		}
+		if hyphen {
+			w.WriteString(s[last:i])
+			w.WriteByte(' ')
+			last = i
+		}
+		hyphen = true
+	}
+	w.WriteString(s[last:])
+	if hyphen {
+		w.WriteByte(' ')
+	}
+}
+
+// sanitizeProcInst writes the contents of a sanitized processing instruction
+// to the writer. XML provides no way to escape the "?>" sequence within a
+// processing instruction, so a space is inserted between the two characters.
+func sanitizeProcInst(w Writer, s string) {
+	for {
+		i := strings.Index(s, "?>")
+		if i < 0 {
+			break
+		}
+		w.WriteString(s[:i+1])
+		w.WriteByte(' ')
+		s = s[i+1:]
+	}
+	w.WriteString(s)
+}
+
+// sanitizeDirective writes the sanitized contents of an XML directive to the
+// writer.
+func sanitizeDirective(w Writer, s string) {
+	// The XML decoder reserves the character following "<!" for comments
+	// ('-') and CDATA sections ('['), and it treats "<!>" as an unterminated
+	// directive. Insert a space to avoid conflicts with reserved sequences.
+	scan := s
+	if s == "" || s[0] == '-' || s[0] == '[' {
+		w.WriteByte(' ')
+	} else {
+		scan = s[1:]
+	}
+
+	// A directive's contents may legitimately contain '<' and '>' characters,
+	// so write them without modification when they are balanced.
+	if isDirectiveBalanced(scan) {
+		w.WriteString(s)
+		return
+	}
+
+	// The contents are unbalanced, so escape every character in the string.
+	escapeString(w, s, escapeNormal)
+}
+
+// isDirectiveBalanced returns true if the interpreted portion of an XML
+// directive's contents may be enclosed by "<!" and ">" without changing the
+// extents of the resulting directive.
+func isDirectiveBalanced(s string) bool {
+	var quote byte
+	var depth int
+	for i := 0; i < len(s); i++ {
+		switch c := s[i]; {
+		case quote != 0:
+			if c == quote {
+				quote = 0
+			}
+		case c == '\'' || c == '"':
+			quote = c
+		case c == '>':
+			if depth == 0 {
+				return false
+			}
+			depth--
+		case c == '<':
+			if !strings.HasPrefix(s[i+1:], "!--") {
+				depth++
+				break
+			}
+			j := strings.Index(s[i+4:], "-->")
+			if j < 0 {
+				return false
+			}
+			i += 4 + j + 2
+		}
+	}
+	return quote == 0 && depth == 0
 }
 
 func isInCharacterRange(r rune) bool {

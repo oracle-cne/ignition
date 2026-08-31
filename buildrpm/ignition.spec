@@ -31,7 +31,7 @@ Version:                2.16.2
 %global dracutlibdir %{_prefix}/lib/dracut
 
 Name:           ignition
-Release:        5%{?dist}
+Release:        6%{?dist}
 Summary:        First boot installer and configuration tool (RHEL CoreOS only)
 
 # Upstream license specification: Apache-2.0
@@ -284,6 +284,9 @@ install -p -m 0755 ./bin/%{mapped_arch}/ignition %{buildroot}/%{dracutlibdir}/mo
 %endif
 
 %changelog
+* Mon Aug 31 2026 Daniel Krasinski <daniel.krasinski@oracle.com> - 2.6.12-6
+- Fix a whole wad of CVEs
+
 * Tue Nov 25 2025 Daniel Krasinski <daniel.krasinski@oracle.com> - 2.16.2-5
 - Fix CVE-2025-22869 and CVE-2025-22868
 
