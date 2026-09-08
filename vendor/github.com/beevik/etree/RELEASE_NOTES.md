@@ -1,3 +1,91 @@
+Release 1.7.1
+=============
+
+**Changes**
+
+* Improve efficiency of `Element.Text` and `Element.Tail`.
+
+Release 1.7.0
+=============
+
+**Breaking changes**
+
+* To address a security issue, it was necessary to add a `MaxDepth` option to
+  `ReadSettings` to limit the depth of XML trees during parsing. A generous
+  default value of 1024 was chosen to avoid breaking most existing code.
+  However, if your code is processing XML hierarchies with a depth greater
+  than 1024, you will need to assign your `Document` a `ReadSettings` that has
+  a `MaxDepth` set to a higher value.
+
+**Security Fixes**
+
+* Limited the depth of XML trees processed by all `ReadFrom` functions during
+  parsing.
+* Fixed a `CompilePath` index-out-of-range panic that could be caused by a
+  missing path filter key.
+* Sanitized the contents of XML text, comment, ProcInst and Directive tokens
+  provided by the user.
+
+
+Release 1.6.0
+=============
+
+**Changes**
+
+* Added new iterator versions of existing functions that return slices of
+  `Element` pointers: `ChildElementsSeq`, `SelectElementsSeq`,
+  `FindElementsSeq`, and `FindElementsPathSeq`.
+* Improved performance of functions that return a single element.
+* Because of its use of iterators, this package now requires go 1.23 or later.
+
+Release 1.5.1
+=============
+
+**Fixes**
+
+* Fixed a bug in `InsertChildAt`.
+
+Release 1.5.0
+=============
+
+**Changes**
+
+* Added `Element` function `CreateChild`, which calls a continuation function
+  after creating and adding a child element.
+
+**Fixes**
+
+* Removed a potential conflict between two `ReadSettings` values. When
+  `AttrSingleQuote` is true, `CanonicalAttrVal` is forced to be false.
+
+Release 1.4.1
+=============
+
+**Changes**
+
+* Minimal go version updated to 1.21.
+* Default-initialized CharsetReader causes same result as NewDocument().
+* When reading an XML document, attributes are parsed more efficiently.
+
+Release v1.4.0
+==============
+
+**New Features**
+
+* Add `AutoClose` option to `ReadSettings`.
+* Add `ValidateInput` to `ReadSettings`.
+* Add `NotNil` function to `Element`.
+* Add `NextSibling` and `PrevSibling` functions to `Element`.
+
+Release v1.3.0
+==============
+
+**New Features**
+
+* Add support for double-quotes in filter path queries.
+* Add `PreserveDuplicateAttrs` to `ReadSettings`.
+* Add `ReindexChildren` to `Element`.
+
 Release v1.2.0
 ==============
 
